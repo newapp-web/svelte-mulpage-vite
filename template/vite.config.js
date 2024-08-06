@@ -4,7 +4,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import bundleAnalyzer from "rollup-plugin-bundle-analyzer";
 import postCssPxToRem from "postcss-pxtorem";
 import autoprefixer from "autoprefixer";
-import { terser } from "rollup-plugin-terser";
+import terser from "@rollup/plugin-terser";
 
 // 获取执行时的参数 --report, 用于打包分析
 const npm_lifecycle_script = process.env.npm_lifecycle_script;
