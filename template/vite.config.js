@@ -5,6 +5,7 @@ import bundleAnalyzer from "rollup-plugin-bundle-analyzer";
 import postCssPxToRem from "postcss-pxtorem";
 import autoprefixer from "autoprefixer";
 import terser from "@rollup/plugin-terser";
+import { babel } from "@rollup/plugin-babel";
 
 // 获取执行时的参数 --report, 用于打包分析
 const npm_lifecycle_script = process.env.npm_lifecycle_script;
@@ -33,6 +34,19 @@ export default ({ mode }) => {
 		},
 		plugins: [
 			svelte(),
+			babel({
+				babelHelpers: "bundled",
+				presets: [
+					[
+						"@babel/preset-env",
+						{
+							targets: "> 0.25%, not dead, ie 11", // 设置目标浏览器环境为支持 ES5 的浏览器，如 IE11
+							modules: false
+						}
+					]
+				],
+				exclude: "node_modules/**" // 排除 node_modules 目录
+			}),
 			// createHtmlPlugin({
 			// 	inject: {
 			// 		injectData: {
