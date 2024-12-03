@@ -1,31 +1,35 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import path from "path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import bundleAnalyzer from "rollup-plugin-bundle-analyzer";
 import postCssPxToRem from "postcss-pxtorem";
 import autoprefixer from "autoprefixer";
 import terser from "@rollup/plugin-terser";
-import { babel } from "@rollup/plugin-babel";
+
+// 雪碧图
+import Spritesmith from "vite-plugin-spritesmith";
+import spriteTemplate from "./src/common/js/spriteTemplate.js";
 
 // 获取执行时的参数 --report, 用于打包分析
 const npm_lifecycle_script = process.env.npm_lifecycle_script;
 const isReport = npm_lifecycle_script.indexOf("--report") > -1;
 // https://vitejs.dev/config/
 export default ({ mode }) => {
-	const isProduction = mode.indexOf("prod") > -1 || mode.indexOf("entfeds") > -1;
-	// const isProduction = true;
+	const env = loadEnv(mode, process.cwd());
+	console.log("🚀 ~ file: vite.config.js:20 ~ env:", env);
+	const isProduction = mode === "production";
 	return defineConfig({
 		base: "./",
 		server: {
+			host: true,
 			port: 5173,
-			// proxy: {
-			// 	'/games': {
-			// 		target: 'http://192.168.13.15:4551',
-			// 		port: 4551,
-			// 		changeOrigin: true,
-			// 		rewrite: (path) => path.replace(/^\/games/, '')
-			// 	}
-			// }
+			proxy: {
+				"/api": {
+					target: env.VITE_API_HOST,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/api/, "")
+				}
+			},
 			fs: {
 				strict: false,
 				// 添加根目录中的 games 文件夹到 Vite 服务器
@@ -33,43 +37,14 @@ export default ({ mode }) => {
 			}
 		},
 		plugins: [
-			svelte(),
-			babel({
-				babelHelpers: "bundled",
-				presets: [
-					[
-						"@babel/preset-env",
-						{
-							targets: "> 0.25%, not dead, ie 11", // 设置目标浏览器环境为支持 ES5 的浏览器，如 IE11
-							modules: false
-						}
-					]
-				],
-				exclude: "node_modules/**" // 排除 node_modules 目录
-			}),
-			// createHtmlPlugin({
-			// 	inject: {
-			// 		injectData: {
-			// 			VITE_INCLUDE_CP: process.env.VITE_INCLUDE_CP
-			// 		}
-			// 	},
-			// 	minify: true,
-			// }),
-			{
-				name: "html-transform",
-				transformIndexHtml: {
-					handler(html, { path }) {
-						if (path === "/index.html") {
-							// 修改路径为你的目标路径
-							return html.replace(
-								"<!-- VITE_INCLUDE_CP === 'saagi' -->",
-								process.env.VITE_INCLUDE_CP === "saagi" ? process.env.VITE_APP_CP_URL : ""
-							);
-						}
-						return html;
+			svelte({
+				onwarn: (warning, handler) => {
+					if (warning.code.includes("a11y")) {
+						return; // 忽略A11y警告
 					}
+					handler(warning); // 处理其他警告
 				}
-			},
+			}),
 			isReport ? bundleAnalyzer() : null,
 			isProduction
 				? terser({
@@ -81,17 +56,45 @@ export default ({ mode }) => {
 							drop_debugger: true
 						}
 					})
-				: null
+				: null,
+			Spritesmith({
+				watch: mode === "development",
+				src: {
+					cwd: "./src/assets/images/spriteIcons",
+					glob: "*.png"
+				},
+				target: {
+					image: "./src/assets/images/sprite.png",
+					css: [
+						[
+							"./src/common/scss/sprite.scss",
+							{
+								format: "function_based_template"
+							}
+						]
+					]
+				},
+				apiOptions: {
+					cssImageRef: "@/assets/images/sprite.png"
+				},
+				customTemplates: {
+					function_based_template: spriteTemplate
+				}
+			})
 		],
 		build: {
 			rollupOptions: {
+				input: {
+					index: path.resolve(__dirname, "index.html"),
+					game: path.resolve(__dirname, "game.html")
+				},
 				output: {
 					chunkFileNames: "js/[name]-[hash].js",
-					entryFileNames: "js/app-[hash].js",
+					entryFileNames: "js/[name]-[hash].js",
 					assetFileNames: "assets/[ext]/[name]-[hash].[ext]",
 					// Pack router, i18n and other libraries into the thunk file separately
 					manualChunks: {
-						thunk: [] // "svelte-i18n"
+						thunk: ["axios", "svelte-intersection-observer-directive"],
 					}
 				},
 				// 开启tree shaking
@@ -125,7 +128,11 @@ export default ({ mode }) => {
 			},
 			preprocessorOptions: {
 				scss: {
-					additionalData: `@import "@/common/scss/mixin.scss";`
+					additionalData: `@use "@/common/scss/mixin.scss" as *;`,
+					logger: {
+						warn: () => {}, // 忽略所有的警告
+						error: console.error
+					}
 				}
 			}
 		}
